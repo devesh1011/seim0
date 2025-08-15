@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+IMPLEMENTATION_COMPLETE.md
+SEI_INTEGRATION.md
+prd.md
+contracts/
+src/oss/.env.example
