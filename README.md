@@ -1,64 +1,225 @@
-# Mem0 - The Memory Layer for Your AI Apps
+# Seim0 - Decentralized Memory Layer on Sei Blockchain
 
-Mem0 is a self-improving memory layer for LLM applications, enabling personalized AI experiences that save costs and delight users. We offer both cloud and open-source solutions to cater to different needs.
+Seim0 is a revolutionary memory layer that stores AI memories directly on the Sei blockchain, ensuring decentralized, immutable, and globally accessible memory storage. Built on top of Sei's high-performance EVM-compatible blockchain, Seim0 combines the power of decentralized storage with IPFS for content and smart contracts for indexing.
 
-See the complete [OSS Docs](https://docs.mem0.ai/open-source/node-quickstart).
-See the complete [Platform API Reference](https://docs.mem0.ai/api-reference).
+## 🌟 Features
 
-## 1. Installation
+- **🔗 Blockchain-Native**: Memories stored directly on Sei blockchain with immutable transaction hashes
+- **📡 IPFS Integration**: Content stored on IPFS for decentralized, censorship-resistant access
+- **⚡ High Performance**: Built on Sei's optimized blockchain for fast transaction processing
+- **🔍 Smart Contract Indexing**: Efficient memory discovery through on-chain smart contracts
+- **💰 Cost Effective**: Leverages Sei's low transaction costs for affordable memory operations
+- **🛡️ Decentralized**: No central authority - your memories are truly yours
+- **🔐 Cryptographic Security**: All operations secured by blockchain cryptography
 
-For the open-source version, you can install the Mem0 package using npm:
+## 📦 Installation
+
+Install the Seim0 package using npm:
 
 ```bash
-npm i mem0ai
+npm install seim0
 ```
 
-## 2. API Key Setup
+## 🚀 Quick Start
 
-For the cloud offering, sign in to [Mem0 Platform](https://app.mem0.ai/dashboard/api-keys) to obtain your API Key.
+### Basic Setup
 
-## 3. Client Features
+```typescript
+import { MemoryClient } from "seim0";
+import { SeiConfig } from "seim0/types";
 
-### Cloud Offering
+// Configure Sei blockchain connection
+const seiConfig: SeiConfig = {
+  rpcUrl: "https://evm-rpc-testnet.sei-apis.com",
+  registryAddress: "0xEd71E25bE660D346E05d76d478f1FD762e74ec76",
+  accessAddress: "0x3027A2548f2C4D42efb44274A7e2217dedBfAdCF",
+  vaultAddress: "0x86D143Cd76f012a3d68154058FEc6315e4e0487D",
+  ipfsGateway: "https://gateway.pinata.cloud/ipfs/",
+};
 
-The cloud version provides a comprehensive set of features, including:
+// Initialize client
+const client = new MemoryClient({
+  backend: "sei",
+  sei: seiConfig,
+});
+```
 
-- **Memory Operations**: Perform CRUD operations on memories.
-- **Search Capabilities**: Search for relevant memories using advanced filters.
-- **Memory History**: Track changes to memories over time.
-- **Error Handling**: Robust error handling for API-related issues.
-- **Async/Await Support**: All methods return promises for easy integration.
+### Adding Memories
 
-### Open-Source Offering
+```typescript
+// Add a memory to the blockchain
+const result = await client.add({
+  messages: [
+    { role: "user", content: "I love playing basketball on weekends" },
+  ],
+  user_id: "user123",
+});
 
-The open-source version includes the following top features:
+console.log("Memory stored on blockchain!");
+console.log("Transaction Hash:", result.txHash);
+console.log("IPFS CID:", result.cid);
+console.log("Stream ID:", result.streamId);
+```
 
-- **Memory Management**: Add, update, delete, and retrieve memories.
-- **Vector Store Integration**: Supports various vector store providers for efficient memory retrieval.
-- **LLM Support**: Integrates with multiple LLM providers for generating responses.
-- **Customizable Configuration**: Easily configure memory settings and providers.
-- **SQLite Storage**: Use SQLite for memory history management.
+### Searching Memories
 
-## 4. Memory Operations
+```typescript
+// Search memories on the blockchain
+const memories = await client.search({
+  query: "basketball",
+  user_id: "user123",
+  limit: 10,
+});
 
-Mem0 provides a simple and customizable interface for performing memory operations. You can create long-term and short-term memories, search for relevant memories, and manage memory history.
+console.log("Found memories:", memories);
+```
 
-## 5. Error Handling
+### Getting All Memories
 
-The MemoryClient throws errors for any API-related issues. You can catch and handle these errors effectively.
+```typescript
+// Get all memories for a user
+const allMemories = await client.getAll("user123");
+console.log("All user memories:", allMemories);
+```
 
-## 6. Using with async/await
+## 🔧 Configuration Options
 
-All methods of the MemoryClient return promises, allowing for seamless integration with async/await syntax.
+### Sei Configuration
 
-## 7. Testing the Client
+```typescript
+interface SeiConfig {
+  rpcUrl: string; // Sei RPC endpoint
+  registryAddress: string; // Memory registry contract address
+  accessAddress: string; // Memory access contract address
+  vaultAddress: string; // Payment vault contract address
+  ipfsGateway: string; // IPFS gateway for content retrieval
+  privateKey?: string; // Optional: Private key for transactions
+}
+```
 
-To test the MemoryClient in a Node.js environment, you can create a simple script to verify the functionality of memory operations.
+### Client Configuration
 
-## Getting Help
+```typescript
+interface MemoryClientConfig {
+  backend: "sei"; // Currently only Sei is supported
+  sei: SeiConfig; // Sei blockchain configuration
+}
+```
 
-If you have any questions or need assistance, please reach out to us:
+## 🏗️ Architecture
 
-- Email: founders@mem0.ai
-- [Join our discord community](https://mem0.ai/discord)
-- GitHub Issues: [Report bugs or request features](https://github.com/mem0ai/mem0/issues)
+Seim0 uses a multi-layered architecture:
+
+1. **Smart Contracts**: Three contracts handle different aspects:
+   - `MemoryRegistry`: Indexes memories and manages metadata
+   - `MemoryAccess`: Controls access permissions and retrieval
+   - `PaymentVault`: Handles transaction fees and payments
+
+2. **IPFS Storage**: Actual memory content is stored on IPFS for:
+   - Decentralized content storage
+   - Immutable content addressing
+   - Global accessibility
+
+3. **Blockchain Indexing**: Memory metadata stored on-chain for:
+   - Fast searchability
+   - Immutable transaction history
+   - Cryptographic verification
+
+## 📝 Examples
+
+Check out the examples in the `src/oss/examples/` directory:
+
+- `sei-example.ts` - Basic usage example
+- `sei-blockchain-example.ts` - Advanced blockchain interactions
+- `sei-production-setup.ts` - Production-ready configuration
+- `sei-signer-setup.ts` - Custom signer configuration
+
+## 🔐 Wallet Integration
+
+### Using MetaMask or External Wallets
+
+```typescript
+import { ethers } from "ethers";
+
+// Connect to MetaMask
+const provider = new ethers.providers.Web3Provider(window.ethereum);
+const signer = provider.getSigner();
+
+const client = new MemoryClient({
+  backend: "sei",
+  sei: {
+    ...seiConfig,
+    signer: signer, // Use external signer
+  },
+});
+```
+
+### Using Private Key
+
+```typescript
+const client = new MemoryClient({
+  backend: "sei",
+  sei: {
+    ...seiConfig,
+    privateKey: "your-private-key-here",
+  },
+});
+```
+
+## 🌐 Network Information
+
+### Testnet (Default)
+
+- RPC URL: `https://evm-rpc-testnet.sei-apis.com`
+- Chain ID: `1328`
+- Native Token: SEI
+- Block Explorer: `https://seitrace.com`
+
+### Smart Contract Addresses (Testnet)
+
+- Memory Registry: `0xEd71E25bE660D346E05d76d478f1FD762e74ec76`
+- Memory Access: `0x3027A2548f2C4D42efb44274A7e2217dedBfAdCF`
+- Payment Vault: `0x86D143Cd76f012a3d68154058FEc6315e4e0487D`
+
+## 🛠️ Development
+
+### Building the Project
+
+```bash
+npm run build
+```
+
+### Running Tests
+
+```bash
+npm test
+```
+
+### Running Examples
+
+```bash
+# Basic example
+npm run sei:example
+
+# Production setup
+npm run sei:production
+
+# Blockchain example
+npm run sei:blockchain
+```
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+## 🆘 Getting Help
+
+If you have any questions or need assistance:
+
+- GitHub Issues: [Report bugs or request features](https://github.com/devesh1011/seim0/issues)
+- Documentation: Check the examples in `src/oss/examples/`
+- Community: Join discussions in GitHub Discussions
