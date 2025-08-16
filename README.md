@@ -207,19 +207,3 @@ npm run sei:production
 # Blockchain example
 npm run sei:blockchain
 ```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
-## 🆘 Getting Help
-
-If you have any questions or need assistance:
-
-- GitHub Issues: [Report bugs or request features](https://github.com/devesh1011/seim0/issues)
-- Documentation: Check the examples in `src/oss/examples/`
-- Community: Join discussions in GitHub Discussions
