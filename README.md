@@ -22,25 +22,38 @@ npm install seim0
 
 ## 🚀 Quick Start
 
-### Basic Setup
+### Installation
+
+```bash
+npm install seim0
+```
+
+### Basic Setup (Mock Mode)
 
 ```typescript
 import { MemoryClient } from "seim0";
-import { SeiConfig } from "seim0/types";
 
-// Configure Sei blockchain connection
-const seiConfig: SeiConfig = {
-  rpcUrl: "https://evm-rpc-testnet.sei-apis.com",
-  registryAddress: "0xEd71E25bE660D346E05d76d478f1FD762e74ec76",
-  accessAddress: "0x3027A2548f2C4D42efb44274A7e2217dedBfAdCF",
-  vaultAddress: "0x86D143Cd76f012a3d68154058FEc6315e4e0487D",
-  ipfsGateway: "https://gateway.pinata.cloud/ipfs/",
-};
-
-// Initialize client
+// Simple initialization - perfect for development and testing
 const client = new MemoryClient({
-  backend: "sei",
-  sei: seiConfig,
+  network: "testnet", // Uses mock transactions when no signer provided
+});
+```
+
+### Production Setup (Real Blockchain)
+
+```typescript
+import { MemoryClient } from "seim0";
+import { ethers } from "ethers";
+
+// For real blockchain transactions with your wallet
+const provider = new ethers.providers.JsonRpcProvider(
+  "https://evm-rpc-testnet.sei-apis.com",
+);
+const signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
+
+const client = new MemoryClient({
+  network: "testnet",
+  signer: signer, // This enables REAL blockchain transactions
 });
 ```
 
@@ -48,62 +61,133 @@ const client = new MemoryClient({
 
 ```typescript
 // Add a memory to the blockchain
-const result = await client.add({
-  messages: [
+const memoryResult = await client.add(
+  [
     { role: "user", content: "I love playing basketball on weekends" },
+    {
+      role: "assistant",
+      content: "Great! I'll remember your sports preference.",
+    },
   ],
-  user_id: "user123",
-});
+  {
+    user_id: "user123",
+    metadata: { category: "sports", importance: "medium" },
+  },
+);
 
 console.log("Memory stored on blockchain!");
-console.log("Transaction Hash:", result.txHash);
-console.log("IPFS CID:", result.cid);
-console.log("Stream ID:", result.streamId);
+console.log("Transaction Hash:", memoryResult.txHash);
+console.log("IPFS CID:", memoryResult.cid);
+console.log("Stream ID:", memoryResult.streamId);
 ```
 
 ### Searching Memories
 
 ```typescript
 // Search memories on the blockchain
-const memories = await client.search({
-  query: "basketball",
+const searchResults = await client.search("basketball", {
   user_id: "user123",
   limit: 10,
 });
 
-console.log("Found memories:", memories);
+console.log(`Found ${searchResults.length} memories:`);
+searchResults.forEach((memory, index) => {
+  console.log(`${index + 1}. ${memory.memory}`);
+  console.log(`   Hash: ${memory.hash}`);
+  console.log(`   Score: ${memory.metadata?.score}`);
+});
 ```
 
 ### Getting All Memories
 
 ```typescript
 // Get all memories for a user
-const allMemories = await client.getAll("user123");
-console.log("All user memories:", allMemories);
+const allMemories = await client.getAll({ user_id: "user123" });
+console.log(`Total memories: ${allMemories.length}`);
+```
+
+### Environment Setup for Production
+
+Create a `.env` file in your project root:
+
+```bash
+# Required for real IPFS uploads
+PINATA_API_KEY=your_pinata_api_key
+PINATA_SECRET_KEY=your_pinata_secret_key
+
+# Required for real blockchain transactions
+PRIVATE_KEY=your_wallet_private_key
 ```
 
 ## 🔧 Configuration Options
 
-### Sei Configuration
+### Simple Configuration (Recommended)
+
+````typescript
+## 🔧 Configuration Options
+
+### Simple Configuration (Recommended)
 
 ```typescript
-interface SeiConfig {
-  rpcUrl: string; // Sei RPC endpoint
-  registryAddress: string; // Memory registry contract address
-  accessAddress: string; // Memory access contract address
-  vaultAddress: string; // Payment vault contract address
-  ipfsGateway: string; // IPFS gateway for content retrieval
-  privateKey?: string; // Optional: Private key for transactions
-}
+// Development mode (uses mocks when credentials not available)
+const client = new MemoryClient({
+  network: "testnet" | "mainnet"
+});
+````
+
+### Production Configuration
+
+```typescript
+import { ethers } from "ethers";
+
+// Full production setup with real blockchain transactions
+const provider = new ethers.providers.JsonRpcProvider(
+  "https://evm-rpc-testnet.sei-apis.com",
+);
+const signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
+
+const client = new MemoryClient({
+  network: "testnet",
+  signer: signer, // Enables real blockchain transactions
+});
 ```
 
-### Client Configuration
+### Advanced Configuration (Optional)
+
+For advanced users who need custom infrastructure:
 
 ```typescript
-interface MemoryClientConfig {
-  backend: "sei"; // Currently only Sei is supported
-  sei: SeiConfig; // Sei blockchain configuration
-}
+const client = new MemoryClient({
+  customConfig: {
+    rpcUrl: "https://your-custom-rpc.com",
+    registryAddress: "0x...",
+    accessAddress: "0x...",
+    vaultAddress: "0x...",
+    ipfsGateway: "https://your-ipfs-gateway.com/ipfs/",
+    privateKey: "your-private-key",
+  },
+});
+```
+
+### Advanced Configuration (Optional)
+
+For advanced users who need custom infrastructure:
+
+```typescript
+import { SeiConfig } from "seim0/types";
+
+const customConfig: SeiConfig = {
+  rpcUrl: "https://your-custom-rpc.com",
+  registryAddress: "0x...",
+  accessAddress: "0x...",
+  vaultAddress: "0x...",
+  ipfsGateway: "https://your-ipfs-gateway.com/ipfs/",
+  privateKey: "your-private-key",
+};
+
+const client = new MemoryClient({
+  customConfig: customConfig,
+});
 ```
 
 ## 🏗️ Architecture
@@ -136,9 +220,25 @@ Check out the examples in the `src/oss/examples/` directory:
 
 ## 🔐 Wallet Integration
 
-### Using MetaMask or External Wallets
+### Using Private Key
 
 ```typescript
+import { ethers } from "ethers";
+
+const provider = new ethers.providers.JsonRpcProvider(
+  "https://evm-rpc-testnet.sei-apis.com",
+);
+const signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
+
+const client = new MemoryClient({
+  network: "testnet",
+  signer: signer,
+});
+```
+
+### Using MetaMask or External Wallets
+
+````typescript
 import { ethers } from "ethers";
 
 // Connect to MetaMask
@@ -146,40 +246,34 @@ const provider = new ethers.providers.Web3Provider(window.ethereum);
 const signer = provider.getSigner();
 
 const client = new MemoryClient({
-  backend: "sei",
-  sei: {
-    ...seiConfig,
-    signer: signer, // Use external signer
-  },
+  network: "testnet",
+  signer: signer
 });
-```
-
-### Using Private Key
-
-```typescript
-const client = new MemoryClient({
-  backend: "sei",
-  sei: {
-    ...seiConfig,
-    privateKey: "your-private-key-here",
-  },
-});
-```
 
 ## 🌐 Network Information
 
+The package automatically handles all blockchain infrastructure based on your network selection:
+
 ### Testnet (Default)
 
-- RPC URL: `https://evm-rpc-testnet.sei-apis.com`
-- Chain ID: `1328`
-- Native Token: SEI
-- Block Explorer: `https://seitrace.com`
+- Automatic RPC connection to Sei testnet
+- Pre-deployed smart contracts
+- Built-in IPFS gateway
+- No additional configuration needed
 
-### Smart Contract Addresses (Testnet)
+### Mainnet
 
-- Memory Registry: `0xEd71E25bE660D346E05d76d478f1FD762e74ec76`
-- Memory Access: `0x3027A2548f2C4D42efb44274A7e2217dedBfAdCF`
-- Payment Vault: `0x86D143Cd76f012a3d68154058FEc6315e4e0487D`
+- Automatic RPC connection to Sei mainnet
+- Production smart contracts
+- Redundant IPFS gateways
+- Enterprise-grade infrastructure
+
+### Technical Details (For Reference)
+
+- **Testnet RPC**: `https://evm-rpc-testnet.sei-apis.com`
+- **Mainnet RPC**: `https://evm-rpc.sei-apis.com`
+- **Chain ID**: 1328 (testnet), 531 (mainnet)
+- **Block Explorer**: `https://seitrace.com`
 
 ## 🛠️ Development
 
@@ -187,7 +281,7 @@ const client = new MemoryClient({
 
 ```bash
 npm run build
-```
+````
 
 ### Running Tests
 

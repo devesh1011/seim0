@@ -10,7 +10,9 @@ import {
   SeiConfig,
   SeiMemoryResult,
   SeiQueryResult,
+  Network,
 } from "./seim0.types";
+import { getNetworkConfig } from "./config";
 
 class APIError extends Error {
   constructor(message: string) {
@@ -21,14 +23,37 @@ class APIError extends Error {
 
 export class MemoryClient {
   private backend: Backend = "sei";
-  private seiConfig?: SeiConfig;
+  private seiConfig: SeiConfig;
 
   constructor(options: MemoryOptions = {}) {
     this.backend = "sei"; // Only Sei backend supported
 
-    if (options.sei) {
+    // Handle simplified configuration
+    if (options.network || (!options.sei && !options.customConfig)) {
+      const network = options.network || "testnet";
+      this.seiConfig = getNetworkConfig(network);
+
+      // Add private key if provided
+      if (options.privateKey) {
+        this.seiConfig.privateKey = options.privateKey;
+      }
+
+      // Add signer if provided
+      if (options.signer) {
+        this.seiConfig.signer = options.signer;
+      }
+
+      console.log(`✅ Sei ${network} backend initialized`);
+    }
+    // Handle advanced configuration
+    else if (options.customConfig) {
+      this.seiConfig = options.customConfig;
+      console.log("✅ Sei backend initialized with custom configuration");
+    }
+    // Handle legacy configuration
+    else if (options.sei) {
       this.seiConfig = options.sei;
-      console.log("✅ Sei backend initialized without API dependency");
+      console.log("✅ Sei backend initialized with legacy configuration");
     } else {
       throw new Error("Sei configuration is required for seim0");
     }
@@ -78,8 +103,6 @@ export class MemoryClient {
     messages: Array<Message>,
     options: MemoryOptions,
   ): Promise<SeiMemoryResult> {
-    if (!this.seiConfig) throw new Error("Sei config not initialized");
-
     try {
       // 1. Extract and process messages
       const text = this._extractTextFromMessages(messages);
@@ -157,8 +180,6 @@ export class MemoryClient {
     query: string,
     options: SearchOptions,
   ): Promise<Memory[]> {
-    if (!this.seiConfig) throw new Error("Sei config not initialized");
-
     try {
       const streamId = options.user_id || "default_stream";
       const limit = options.limit || 10;
@@ -266,8 +287,6 @@ export class MemoryClient {
   }
 
   private async _uploadToIPFS(document: any): Promise<string> {
-    if (!this.seiConfig) throw new Error("Sei config not initialized");
-
     // Real IPFS upload using Pinata
     try {
       const pinataApiKey = process.env.PINATA_API_KEY;
@@ -315,8 +334,6 @@ export class MemoryClient {
     merkleRoot: string,
     metadata: string,
   ): Promise<string> {
-    if (!this.seiConfig) throw new Error("Sei config not initialized");
-
     // Real blockchain transaction
     try {
       if (!this.seiConfig.signer) {
@@ -387,7 +404,7 @@ export class MemoryClient {
   ): Promise<any[]> {
     // Real blockchain search - get actual CIDs from the registry
     try {
-      if (!this.seiConfig?.signer) {
+      if (!this.seiConfig.signer) {
         console.warn("No signer found for blockchain search, using mock");
         return Array.from({ length: Math.min(limit, 3) }, (_, i) => ({
           cid: `Qm${i.toString().padEnd(44, "0")}`,
@@ -468,8 +485,6 @@ export class MemoryClient {
   }
 
   private async _fetchFromIPFS(cid: string): Promise<any> {
-    if (!this.seiConfig) throw new Error("Sei config not initialized");
-
     // Real IPFS fetch
     try {
       const response = await fetch(`${this.seiConfig.ipfsGateway}${cid}`);

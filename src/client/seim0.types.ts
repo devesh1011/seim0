@@ -1,4 +1,5 @@
 export type Backend = "sei";
+export type Network = "testnet" | "mainnet";
 
 export interface SeiConfig {
   rpcUrl: string;
@@ -6,6 +7,15 @@ export interface SeiConfig {
   accessAddress: string;
   vaultAddress: string;
   ipfsGateway: string;
+  privateKey?: string; // Added privateKey support
+  signer?: any; // ethers.js signer
+}
+
+// Simplified configuration for developers
+export interface SimpleConfig {
+  network: Network;
+  privateKey?: string;
+  apiKey?: string;
   signer?: any; // ethers.js signer
 }
 
@@ -20,7 +30,16 @@ export interface MemoryOptions {
   page_size?: number;
   timestamp?: number;
   backend?: Backend;
+
+  // New simplified configuration
+  network?: Network;
+  privateKey?: string;
+  apiKey?: string;
+  signer?: any;
+
+  // Legacy advanced configuration
   sei?: SeiConfig;
+  customConfig?: SeiConfig;
   immutable?: boolean;
 }
 
