@@ -25,11 +25,10 @@ npm install seim0
 Create a `.env` file in your project root:
 
 ```bash
-# Required for IPFS storage (your own infrastructure)
 PINATA_API_KEY=your_pinata_api_key
 PINATA_SECRET_KEY=your_pinata_secret_key
 
-# Required for blockchain transactions
+# Required for on-chain transactions
 PRIVATE_KEY=your_wallet_private_key
 ```
 
@@ -37,9 +36,17 @@ PRIVATE_KEY=your_wallet_private_key
 
 ```typescript
 import { MemoryClient } from "seim0";
+import { ethers } from "ethers";
 
-const client = new MemoryClient({
+const provider = new ethers.providers.JsonRpcProvider(
+  "https://evm-rpc-testnet.sei-apis.com"
+);
+
+const signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
+
+const memory = new MemoryClient({
   network: "testnet", // or "mainnet"
+  signer: signer,
 });
 ```
 
@@ -47,7 +54,7 @@ const client = new MemoryClient({
 
 ```typescript
 // Add a memory to the blockchain
-const memoryResult = await client.add(
+const memoryResult = await memory.add(
   [
     { role: "user", content: "I love playing basketball on weekends" },
     {
@@ -55,7 +62,7 @@ const memoryResult = await client.add(
       content: "Great! I'll remember your sports preference.",
     },
   ],
-  { user_id: "user123" },
+  { user_id: "user123" }
 );
 
 console.log("Memory stored on blockchain!");
@@ -67,7 +74,7 @@ console.log("IPFS CID:", memoryResult.cid);
 
 ```typescript
 // Search memories on the blockchain
-const searchResults = await client.search("basketball", {
+const searchResults = await memory.search("basketball", {
   user_id: "user123",
   limit: 10,
 });
@@ -82,7 +89,7 @@ searchResults.forEach((memory, index) => {
 
 ```typescript
 // Get all memories for a user
-const allMemories = await client.getAll({ user_id: "user123" });
+const allMemories = await memory.getAll({ user_id: "user123" });
 console.log(`Total memories: ${allMemories.length}`);
 ```
 
