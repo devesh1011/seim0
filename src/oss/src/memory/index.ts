@@ -14,17 +14,10 @@ import {
   VectorStoreFactory,
   HistoryManagerFactory,
 } from "../utils/factory";
-import {
-  getFactRetrievalMessages,
-  getUpdateMemoryMessages,
-  parseMessages,
-  removeCodeBlocks,
-} from "../prompts";
 import { SQLiteManager } from "../storage/SQLiteManager";
 import { Embedder } from "../embeddings/base";
 import { LLM } from "../llms/base";
 import { VectorStore } from "../vector_stores/base";
-import { ConfigManager } from "../config/manager";
 import { MemoryGraph } from "./graph_memory";
 import {
   AddMemoryOptions,
@@ -35,6 +28,22 @@ import {
 import { parse_vision_messages } from "../utils/memory";
 import { HistoryManager } from "../storage/base";
 import { captureClientEvent } from "../utils/telemetry";
+
+// Simple stub implementations for deleted prompt functions
+function getFactRetrievalMessages(messages: string): [string, string] {
+  return [
+    "Extract key facts from the following messages:",
+    `Messages: ${messages}`,
+  ];
+}
+
+function getUpdateMemoryMessages(oldMemories: any[], facts: string[]): string {
+  return `Old memories: ${JSON.stringify(oldMemories)}\nNew facts: ${JSON.stringify(facts)}`;
+}
+
+function removeCodeBlocks(text: string): string {
+  return text.replace(/```[^`]*```/g, "").trim();
+}
 
 export class Memory {
   private config: MemoryConfig;
@@ -50,8 +59,17 @@ export class Memory {
   telemetryId: string;
 
   constructor(config: Partial<MemoryConfig> = {}) {
-    // Merge and validate config
-    this.config = ConfigManager.mergeConfig(config);
+    // Simple default config instead of ConfigManager
+    this.config = {
+      llm: { provider: "openai", config: {} },
+      embedder: { provider: "openai", config: {} },
+      vectorStore: { provider: "memory", config: {} },
+      version: "v1.1",
+      customPrompt: undefined,
+      historyDbPath: ":memory:",
+      disableHistory: false,
+      ...config,
+    } as MemoryConfig;
 
     this.customPrompt = this.config.customPrompt;
     this.embedder = EmbedderFactory.create(

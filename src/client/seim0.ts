@@ -33,14 +33,27 @@ export class MemoryClient {
       const network = options.network || "testnet";
       this.seiConfig = getNetworkConfig(network);
 
-      // Add private key if provided
-      if (options.privateKey) {
-        this.seiConfig.privateKey = options.privateKey;
-      }
+      // Automatically pull environment variables for simplified setup
+      this.seiConfig.privateKey = options.privateKey || process.env.PRIVATE_KEY;
+      this.seiConfig.pinataApiKey = process.env.PINATA_API_KEY;
+      this.seiConfig.pinataSecretKey = process.env.PINATA_SECRET_KEY;
 
       // Add signer if provided
       if (options.signer) {
         this.seiConfig.signer = options.signer;
+      }
+
+      // Validate required credentials
+      if (!this.seiConfig.privateKey && !this.seiConfig.signer) {
+        throw new Error(
+          "Either PRIVATE_KEY environment variable or signer option is required for blockchain transactions",
+        );
+      }
+
+      if (!this.seiConfig.pinataApiKey || !this.seiConfig.pinataSecretKey) {
+        console.warn(
+          "⚠️  PINATA_API_KEY and PINATA_SECRET_KEY not found in environment variables. IPFS uploads will use mock data for development.",
+        );
       }
 
       console.log(`✅ Sei ${network} backend initialized`);
@@ -56,6 +69,35 @@ export class MemoryClient {
       console.log("✅ Sei backend initialized with legacy configuration");
     } else {
       throw new Error("Sei configuration is required for seim0");
+    }
+  }
+
+  private async _ensureSigner() {
+    if (!this.seiConfig.signer && this.seiConfig.privateKey) {
+      try {
+        // Import ethers for signer creation
+        const { ethers } = await import("ethers");
+
+        // Create provider for the configured network
+        const provider = new ethers.providers.JsonRpcProvider(
+          this.seiConfig.rpcUrl,
+        );
+
+        // Create signer from private key
+        this.seiConfig.signer = new ethers.Wallet(
+          this.seiConfig.privateKey,
+          provider,
+        );
+
+        console.log(
+          `🔑 Wallet initialized: ${await this.seiConfig.signer.getAddress()}`,
+        );
+      } catch (error) {
+        console.error("Failed to create signer from private key:", error);
+        throw new Error(
+          "Failed to initialize wallet. Please check your PRIVATE_KEY.",
+        );
+      }
     }
   }
 
@@ -287,13 +329,13 @@ export class MemoryClient {
   }
 
   private async _uploadToIPFS(document: any): Promise<string> {
-    // Real IPFS upload using Pinata
+    // Real IPFS upload using Pinata from config
     try {
-      const pinataApiKey = process.env.PINATA_API_KEY;
-      const pinataSecretKey = process.env.PINATA_SECRET_KEY;
+      const pinataApiKey = this.seiConfig.pinataApiKey;
+      const pinataSecretKey = this.seiConfig.pinataSecretKey;
 
       if (!pinataApiKey || !pinataSecretKey) {
-        console.warn("PINATA credentials not found, using mock CID");
+        console.warn("PINATA credentials not found in config, using mock CID");
         return `Qm${this._simpleHash(JSON.stringify(document)).toString(36).padEnd(44, "0")}`;
       }
 
@@ -336,6 +378,9 @@ export class MemoryClient {
   ): Promise<string> {
     // Real blockchain transaction
     try {
+      // Ensure signer is created from private key if needed
+      await this._ensureSigner();
+
       if (!this.seiConfig.signer) {
         console.warn("No signer found, using mock transaction");
         return `0x${this._simpleHash(`${streamId}${cid}`).toString(16).padStart(64, "0")}`;
@@ -404,6 +449,9 @@ export class MemoryClient {
   ): Promise<any[]> {
     // Real blockchain search - get actual CIDs from the registry
     try {
+      // Ensure signer is created from private key if needed
+      await this._ensureSigner();
+
       if (!this.seiConfig.signer) {
         console.warn("No signer found for blockchain search, using mock");
         return Array.from({ length: Math.min(limit, 3) }, (_, i) => ({

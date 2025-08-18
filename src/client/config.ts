@@ -1,4 +1,4 @@
-import { SeiConfig, Network } from "./mem0.types";
+import { SeiConfig, Network } from "./seim0.types";
 
 export const DEFAULT_CONFIGS: Record<Network, SeiConfig> = {
   testnet: {

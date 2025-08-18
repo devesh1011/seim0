@@ -1,6 +1,6 @@
 {
   "name": "seim0",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Decentralized Memory Layer on Sei Blockchain",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

@@ -9,6 +9,8 @@ export interface SeiConfig {
   ipfsGateway: string;
   privateKey?: string; // Added privateKey support
   signer?: any; // ethers.js signer
+  pinataApiKey?: string; // PINATA API key for IPFS
+  pinataSecretKey?: string; // PINATA secret key for IPFS
 }
 
 // Simplified configuration for developers
