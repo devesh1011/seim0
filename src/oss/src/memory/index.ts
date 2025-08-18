@@ -28,22 +28,14 @@ import {
 import { parse_vision_messages } from "../utils/memory";
 import { HistoryManager } from "../storage/base";
 import { captureClientEvent } from "../utils/telemetry";
-
-// Simple stub implementations for deleted prompt functions
-function getFactRetrievalMessages(messages: string): [string, string] {
-  return [
-    "Extract key facts from the following messages:",
-    `Messages: ${messages}`,
-  ];
-}
-
-function getUpdateMemoryMessages(oldMemories: any[], facts: string[]): string {
-  return `Old memories: ${JSON.stringify(oldMemories)}\nNew facts: ${JSON.stringify(facts)}`;
-}
-
-function removeCodeBlocks(text: string): string {
-  return text.replace(/```[^`]*```/g, "").trim();
-}
+import {
+  getFactRetrievalMessages,
+  getUpdateMemoryMessages,
+  removeCodeBlocks,
+  parseFactExtractionResponse,
+  parseMemoryOperationsResponse,
+  MemoryOperation,
+} from "../prompts";
 
 export class Memory {
   private config: MemoryConfig;
@@ -257,12 +249,15 @@ export class Memory {
       }
       return returnedMemories;
     }
+
     const parsedMessages = messages.map((m) => m.content).join("\n");
 
+    // Use enhanced fact extraction prompts
     const [systemPrompt, userPrompt] = this.customPrompt
       ? [this.customPrompt, `Input:\n${parsedMessages}`]
       : getFactRetrievalMessages(parsedMessages);
 
+    console.log("Extracting facts with enhanced prompts...");
     const response = await this.llm.generateResponse(
       [
         { role: "system", content: systemPrompt },
@@ -271,17 +266,13 @@ export class Memory {
       { type: "json_object" },
     );
 
-    const cleanResponse = removeCodeBlocks(response as string);
-    let facts: string[] = [];
-    try {
-      facts = JSON.parse(cleanResponse).facts || [];
-    } catch (e) {
-      console.error(
-        "Failed to parse facts from LLM response:",
-        cleanResponse,
-        e,
-      );
-      facts = [];
+    // Parse extracted facts using improved parsing
+    const facts = parseFactExtractionResponse(response as string);
+    console.log(`Extracted ${facts.length} facts:`, facts);
+
+    if (facts.length === 0) {
+      console.log("No facts extracted from the conversation");
+      return [];
     }
 
     // Get embeddings for new facts
@@ -316,71 +307,81 @@ export class Memory {
       uniqueOldMemories[idx].id = String(idx);
     });
 
-    // Get memory update decisions
+    console.log(`Found ${uniqueOldMemories.length} existing similar memories`);
+
+    // Get memory update decisions using enhanced prompts
     const updatePrompt = getUpdateMemoryMessages(uniqueOldMemories, facts);
 
+    console.log("Getting memory management decisions...");
     const updateResponse = await this.llm.generateResponse(
       [{ role: "user", content: updatePrompt }],
       { type: "json_object" },
     );
 
-    const cleanUpdateResponse = removeCodeBlocks(updateResponse as string);
-    let memoryActions: any[] = [];
-    try {
-      memoryActions = JSON.parse(cleanUpdateResponse).memory || [];
-    } catch (e) {
-      console.error(
-        "Failed to parse memory actions from LLM response:",
-        cleanUpdateResponse,
-        e,
-      );
-      memoryActions = [];
-    }
+    // Parse memory operations using improved parsing
+    const memoryActions = parseMemoryOperationsResponse(
+      updateResponse as string,
+    );
+    console.log(`Processing ${memoryActions.length} memory operations`);
 
     // Process memory actions
     const results: MemoryItem[] = [];
     for (const action of memoryActions) {
       try {
-        switch (action.event) {
+        switch (action.action) {
           case "ADD": {
-            const memoryId = await this.createMemory(
-              action.text,
-              newMessageEmbeddings,
-              metadata,
-            );
-            results.push({
-              id: memoryId,
-              memory: action.text,
-              metadata: { event: action.event },
-            });
+            if (action.memory) {
+              const memoryId = await this.createMemory(
+                action.memory,
+                newMessageEmbeddings,
+                metadata,
+              );
+              results.push({
+                id: memoryId,
+                memory: action.memory,
+                metadata: { event: action.action, reasoning: action.reasoning },
+              });
+              console.log(`Added new memory: ${action.memory}`);
+            }
             break;
           }
           case "UPDATE": {
-            const realMemoryId = tempUuidMapping[action.id];
-            await this.updateMemory(
-              realMemoryId,
-              action.text,
-              newMessageEmbeddings,
-              metadata,
-            );
-            results.push({
-              id: realMemoryId,
-              memory: action.text,
-              metadata: {
-                event: action.event,
-                previousMemory: action.old_memory,
-              },
-            });
+            if (action.memory_id && action.memory) {
+              const realMemoryId = tempUuidMapping[action.memory_id];
+              await this.updateMemory(
+                realMemoryId,
+                action.memory,
+                newMessageEmbeddings,
+                metadata,
+              );
+              results.push({
+                id: realMemoryId,
+                memory: action.memory,
+                metadata: {
+                  event: action.action,
+                  reasoning: action.reasoning,
+                  previousMemory: (action as any).old_memory,
+                },
+              });
+              console.log(`Updated memory ${realMemoryId}: ${action.memory}`);
+            }
             break;
           }
           case "DELETE": {
-            const realMemoryId = tempUuidMapping[action.id];
-            await this.deleteMemory(realMemoryId);
-            results.push({
-              id: realMemoryId,
-              memory: action.text,
-              metadata: { event: action.event },
-            });
+            if (action.memory_id) {
+              const realMemoryId = tempUuidMapping[action.memory_id];
+              await this.deleteMemory(realMemoryId);
+              results.push({
+                id: realMemoryId,
+                memory: "", // Empty for deleted items
+                metadata: { event: action.action, reasoning: action.reasoning },
+              });
+              console.log(`Deleted memory ${realMemoryId}`);
+            }
+            break;
+          }
+          case "NONE": {
+            console.log(`No action needed: ${action.reasoning}`);
             break;
           }
         }
@@ -389,6 +390,9 @@ export class Memory {
       }
     }
 
+    console.log(
+      `Completed processing. Final results: ${results.length} memory changes`,
+    );
     return results;
   }
 
