@@ -1,6 +1,8 @@
 import { OpenAIEmbedder } from "../embeddings/openai";
 import { OllamaEmbedder } from "../embeddings/ollama";
+import { GoogleEmbedder } from "../embeddings/google";
 import { OpenAILLM } from "../llms/openai";
+import { GoogleLLM } from "../llms/google";
 import { MemoryVectorStore } from "../vector_stores/memory";
 import {
   EmbeddingConfig,
@@ -23,6 +25,8 @@ export class EmbedderFactory {
         return new OpenAIEmbedder(config);
       case "ollama":
         return new OllamaEmbedder(config);
+      case "google":
+        return new GoogleEmbedder(config);
       default:
         throw new Error(`Unsupported embedding provider: ${provider}`);
     }
@@ -36,6 +40,8 @@ export class LLMFactory {
         return new OpenAILLM(config);
       case "ollama":
         return new OllamaLLM(config);
+      case "google":
+        return new GoogleLLM(config);
       default:
         throw new Error(`Unsupported LLM provider: ${provider}`);
     }

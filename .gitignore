@@ -4,5 +4,9 @@ dist/
 IMPLEMENTATION_COMPLETE.md
 SEI_INTEGRATION.md
 prd.md
-contracts/
 src/oss/.env.example
+contracts/artifacts
+contracts/cache
+contracts/.env.example
+contracts/deployment-info.json
+vector_store.db

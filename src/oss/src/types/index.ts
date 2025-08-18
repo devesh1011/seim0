@@ -34,6 +34,12 @@ export interface HistoryStoreConfig {
     supabaseUrl?: string;
     supabaseKey?: string;
     tableName?: string;
+    gateway?: string;
+    apiUrl?: string;
+    apiKey?: string;
+    pinataApiKey?: string;
+    pinataSecretKey?: string;
+    [key: string]: any;
   };
 }
 

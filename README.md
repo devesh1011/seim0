@@ -39,7 +39,7 @@ import { MemoryClient } from "seim0";
 import { ethers } from "ethers";
 
 const provider = new ethers.providers.JsonRpcProvider(
-  "https://evm-rpc-testnet.sei-apis.com"
+  "https://evm-rpc-testnet.sei-apis.com",
 );
 
 const signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
@@ -62,7 +62,7 @@ const memoryResult = await memory.add(
       content: "Great! I'll remember your sports preference.",
     },
   ],
-  { user_id: "user123" }
+  { user_id: "user123" },
 );
 
 console.log("Memory stored on blockchain!");
