@@ -1,6 +1,25 @@
 export type Backend = "sei";
 export type Network = "testnet" | "mainnet";
 
+export interface LLMConfig {
+  provider: string;
+  config: {
+    apiKey?: string;
+    model?: string;
+    baseURL?: string;
+    [key: string]: any;
+  };
+}
+
+export interface EmbedderConfig {
+  provider: string;
+  config: {
+    apiKey?: string;
+    model?: string;
+    [key: string]: any;
+  };
+}
+
 export interface SeiConfig {
   rpcUrl: string;
   registryAddress: string;
@@ -38,6 +57,11 @@ export interface MemoryOptions {
   privateKey?: string;
   apiKey?: string;
   signer?: any;
+
+  // AI Configuration
+  llm?: LLMConfig;
+  embedder?: EmbedderConfig;
+  enableFactExtraction?: boolean; // Enable/disable fact extraction
 
   // Legacy advanced configuration
   sei?: SeiConfig;

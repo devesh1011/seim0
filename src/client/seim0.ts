@@ -11,8 +11,12 @@ import {
   SeiMemoryResult,
   SeiQueryResult,
   Network,
+  LLMConfig,
+  EmbedderConfig,
 } from "./seim0.types";
 import { getNetworkConfig } from "./config";
+import { Memory as OSS_Memory } from "../oss/src/memory";
+import { MemoryItem, SearchResult } from "../oss/src/types";
 
 class APIError extends Error {
   constructor(message: string) {
@@ -24,9 +28,12 @@ class APIError extends Error {
 export class MemoryClient {
   private backend: Backend = "sei";
   private seiConfig: SeiConfig;
+  private ossMemory?: OSS_Memory;
+  private enableFactExtraction: boolean = true;
 
   constructor(options: MemoryOptions = {}) {
     this.backend = "sei"; // Only Sei backend supported
+    this.enableFactExtraction = options.enableFactExtraction !== false; // Default to true
 
     // Handle simplified configuration
     if (options.network || (!options.sei && !options.customConfig)) {
@@ -46,13 +53,13 @@ export class MemoryClient {
       // Validate required credentials
       if (!this.seiConfig.privateKey && !this.seiConfig.signer) {
         throw new Error(
-          "Either PRIVATE_KEY environment variable or signer option is required for blockchain transactions",
+          "Either PRIVATE_KEY environment variable or signer option is required for blockchain transactions"
         );
       }
 
       if (!this.seiConfig.pinataApiKey || !this.seiConfig.pinataSecretKey) {
         console.warn(
-          "⚠️  PINATA_API_KEY and PINATA_SECRET_KEY not found in environment variables. IPFS uploads will use mock data for development.",
+          "⚠️  PINATA_API_KEY and PINATA_SECRET_KEY not found in environment variables. IPFS uploads will use mock data for development."
         );
       }
 
@@ -70,6 +77,62 @@ export class MemoryClient {
     } else {
       throw new Error("Sei configuration is required for seim0");
     }
+
+    // Initialize fact extraction if enabled and LLM/embedder configured
+    if (this.enableFactExtraction && (options.llm || options.embedder)) {
+      this._initializeFactExtraction(options);
+    }
+  }
+
+  private _initializeFactExtraction(options: MemoryOptions) {
+    try {
+      // Default LLM configuration
+      const defaultLLM: LLMConfig = {
+        provider: "openai",
+        config: {
+          apiKey: process.env.OPENAI_API_KEY || "",
+          model: "gpt-4-turbo-preview",
+        },
+      };
+
+      // Default embedder configuration
+      const defaultEmbedder: EmbedderConfig = {
+        provider: "openai",
+        config: {
+          apiKey: process.env.OPENAI_API_KEY || "",
+          model: "text-embedding-3-small",
+        },
+      };
+
+      // Use provided configurations or defaults
+      const llmConfig = options.llm || defaultLLM;
+      const embedderConfig = options.embedder || defaultEmbedder;
+
+      // Initialize OSS Memory for fact extraction
+      this.ossMemory = new OSS_Memory({
+        version: "v1.1",
+        llm: llmConfig,
+        embedder: embedderConfig,
+        vectorStore: {
+          provider: "memory",
+          config: {
+            collectionName: "sei_memories",
+            dimension: embedderConfig.provider === "google" ? 768 : 1536,
+          },
+        },
+        disableHistory: false,
+      });
+
+      console.log(
+        `🧠 Fact extraction enabled with ${llmConfig.provider} LLM and ${embedderConfig.provider} embedder`
+      );
+    } catch (error) {
+      console.error("Failed to initialize fact extraction:", error);
+      console.warn(
+        "⚠️  Continuing without fact extraction. Raw messages will be stored."
+      );
+      this.enableFactExtraction = false;
+    }
   }
 
   private async _ensureSigner() {
@@ -80,22 +143,22 @@ export class MemoryClient {
 
         // Create provider for the configured network
         const provider = new ethers.providers.JsonRpcProvider(
-          this.seiConfig.rpcUrl,
+          this.seiConfig.rpcUrl
         );
 
         // Create signer from private key
         this.seiConfig.signer = new ethers.Wallet(
           this.seiConfig.privateKey,
-          provider,
+          provider
         );
 
         console.log(
-          `🔑 Wallet initialized: ${await this.seiConfig.signer.getAddress()}`,
+          `🔑 Wallet initialized: ${await this.seiConfig.signer.getAddress()}`
         );
       } catch (error) {
         console.error("Failed to create signer from private key:", error);
         throw new Error(
-          "Failed to initialize wallet. Please check your PRIVATE_KEY.",
+          "Failed to initialize wallet. Please check your PRIVATE_KEY."
         );
       }
     }
@@ -104,7 +167,7 @@ export class MemoryClient {
   // Core memory operations for Sei blockchain
   async add(
     messages: Array<Message>,
-    options: MemoryOptions = {},
+    options: MemoryOptions = {}
   ): Promise<SeiMemoryResult> {
     return this._addSei(messages, options);
   }
@@ -124,7 +187,7 @@ export class MemoryClient {
   async update(
     memoryId: string,
     data: MemoryUpdateBody,
-    options: MemoryOptions = {},
+    options: MemoryOptions = {}
   ): Promise<Memory> {
     return this._updateSei(memoryId, data, options);
   }
@@ -135,7 +198,7 @@ export class MemoryClient {
 
   async history(
     memoryId: string,
-    options: MemoryOptions = {},
+    options: MemoryOptions = {}
   ): Promise<MemoryHistory[]> {
     return this._historySei(memoryId, options);
   }
@@ -143,18 +206,49 @@ export class MemoryClient {
   // Sei blockchain implementations
   private async _addSei(
     messages: Array<Message>,
-    options: MemoryOptions,
+    options: MemoryOptions
   ): Promise<SeiMemoryResult> {
     try {
-      // 1. Extract and process messages
-      const text = this._extractTextFromMessages(messages);
+      let extractedFacts: MemoryItem[] = [];
+      let processedContent: string;
 
-      // 2. Create memory document
+      // 1. Perform fact extraction if enabled
+      if (this.enableFactExtraction && this.ossMemory) {
+        console.log("🧠 Extracting facts from conversation...");
+
+        const factResult = await this.ossMemory.add(messages, {
+          userId: options.user_id || "anonymous",
+          agentId: options.agent_id,
+          runId: options.run_id,
+          metadata: options.metadata,
+        });
+
+        extractedFacts = factResult.results;
+        processedContent = extractedFacts.map((fact) => fact.memory).join("\n");
+
+        console.log(`✅ Extracted ${extractedFacts.length} facts:`);
+        extractedFacts.forEach((fact, i) => {
+          console.log(`   ${i + 1}. ${fact.memory} (${fact.metadata?.event})`);
+        });
+      } else {
+        // Fallback to raw text extraction
+        processedContent = this._extractTextFromMessages(messages);
+        console.log("📝 Storing raw conversation (fact extraction disabled)");
+      }
+
+      // 2. Create memory document with extracted facts
       const memoryId = `mem_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const document = {
         id: memoryId,
-        content: text,
-        messages,
+        content: processedContent,
+        originalMessages: messages,
+        extractedFacts: extractedFacts.map((fact) => ({
+          id: fact.id,
+          memory: fact.memory,
+          event: fact.metadata?.event,
+          reasoning: fact.metadata?.reasoning,
+        })),
+        factExtractionEnabled: this.enableFactExtraction,
         metadata: {
           ...options.metadata,
           user_id: options.user_id,
@@ -163,29 +257,34 @@ export class MemoryClient {
           run_id: options.run_id,
           environment: "production",
           timestamp: Date.now(),
+          factCount: extractedFacts.length,
         },
       };
 
       // 3. Upload to IPFS
+      console.log("📡 Uploading to IPFS...");
       const cid = await this._uploadToIPFS(document);
 
       // 4. Create merkle root (simplified)
       const merkleRoot = `0x${this._simpleHash(cid).toString(16).padStart(64, "0")}`;
 
       // 5. Append to Sei registry
+      console.log("⛓️  Storing on Sei blockchain...");
       const streamId = options.user_id || "default_stream";
       const txHash = await this._appendToSeiRegistry(
         streamId,
         cid,
         merkleRoot,
-        JSON.stringify(document.metadata),
+        JSON.stringify(document.metadata)
       );
 
       console.log("🎉 Memory successfully stored on blockchain!");
-      console.log("📝 Memory details:", {
-        id: memoryId,
-        hash: cid,
-        txHash,
+      console.log("� Storage summary:", {
+        memoryId,
+        factsExtracted: extractedFacts.length,
+        ipfsCid: cid,
+        blockchainTx: txHash,
+        factExtractionEnabled: this.enableFactExtraction,
       });
 
       return {
@@ -197,18 +296,18 @@ export class MemoryClient {
     } catch (error) {
       console.error("Error adding Sei memory:", error);
       throw new APIError(
-        `Failed to add Sei memory: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `Failed to add Sei memory: ${error instanceof Error ? error.message : "Unknown error"}`
       );
     }
   }
 
   private async _getSei(
     memoryId: string,
-    options: MemoryOptions,
+    options: MemoryOptions
   ): Promise<Memory> {
     // Simplified implementation - in production, query blockchain by memory ID
     throw new Error(
-      "Get by ID not yet implemented for Sei. Use search instead.",
+      "Get by ID not yet implemented for Sei. Use search instead."
     );
   }
 
@@ -220,11 +319,56 @@ export class MemoryClient {
 
   private async _searchSei(
     query: string,
-    options: SearchOptions,
+    options: SearchOptions
   ): Promise<Memory[]> {
     try {
       const streamId = options.user_id || "default_stream";
       const limit = options.limit || 10;
+
+      // Use enhanced semantic search if fact extraction is enabled
+      if (this.enableFactExtraction && this.ossMemory && query.trim()) {
+        console.log("🔍 Using semantic search with fact extraction...");
+
+        try {
+          const semanticResults = await this.ossMemory.search(query, {
+            userId: options.user_id,
+            agentId: options.agent_id,
+            runId: options.run_id,
+            limit,
+          });
+
+          // Convert OSS memory results to client format
+          const memories: Memory[] = semanticResults.results.map((result) => ({
+            id: result.id,
+            memory: result.memory,
+            hash: result.hash,
+            data: { memory: result.memory },
+            user_id: options.user_id,
+            created_at: result.createdAt
+              ? new Date(result.createdAt)
+              : new Date(),
+            updated_at: result.updatedAt
+              ? new Date(result.updatedAt)
+              : new Date(),
+            metadata: {
+              ...result.metadata,
+              score: result.score,
+              factExtracted: true,
+            },
+          }));
+
+          console.log(`✅ Found ${memories.length} semantic matches`);
+          return memories;
+        } catch (error) {
+          console.warn(
+            "Semantic search failed, falling back to blockchain search:",
+            error
+          );
+        }
+      }
+
+      // Fallback to traditional blockchain search
+      console.log("🔍 Using blockchain-based search...");
 
       // 1. Generate query embedding (simplified)
       const queryEmbedding = await this._generateEmbedding(query);
@@ -233,7 +377,7 @@ export class MemoryClient {
       const searchResults = await this._searchSeiIndex(
         queryEmbedding,
         streamId,
-        limit,
+        limit
       );
 
       // 3. Verify results and hydrate from IPFS
@@ -251,6 +395,7 @@ export class MemoryClient {
                 ...content.metadata,
                 verified: true,
                 score: result.score,
+                factExtracted: content.factExtractionEnabled || false,
               },
               created_at: new Date(content.metadata.timestamp),
               updated_at: new Date(content.metadata.timestamp),
@@ -259,11 +404,12 @@ export class MemoryClient {
         }
       }
 
+      console.log(`✅ Found ${memories.length} blockchain matches`);
       return memories;
     } catch (error) {
       console.error("Error searching Sei memories:", error);
       throw new APIError(
-        `Failed to search Sei memories: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `Failed to search Sei memories: ${error instanceof Error ? error.message : "Unknown error"}`
       );
     }
   }
@@ -271,27 +417,27 @@ export class MemoryClient {
   private async _updateSei(
     memoryId: string,
     data: MemoryUpdateBody,
-    options: MemoryOptions,
+    options: MemoryOptions
   ): Promise<Memory> {
     // For blockchain, create new memory with reference to old one
     throw new Error(
-      "Update not yet implemented for Sei. Create new memory instead.",
+      "Update not yet implemented for Sei. Create new memory instead."
     );
   }
 
   private async _deleteSei(
     memoryId: string,
-    options: MemoryOptions,
+    options: MemoryOptions
   ): Promise<string> {
     // Blockchain records are immutable, mark as deleted in metadata
     throw new Error(
-      "Delete not yet implemented for Sei. Memories are immutable on blockchain.",
+      "Delete not yet implemented for Sei. Memories are immutable on blockchain."
     );
   }
 
   private async _historySei(
     memoryId: string,
-    options: MemoryOptions,
+    options: MemoryOptions
   ): Promise<MemoryHistory[]> {
     // Get memory history from blockchain events
     throw new Error("History not yet implemented for Sei.");
@@ -303,7 +449,7 @@ export class MemoryClient {
       .map((msg) =>
         typeof msg.content === "string"
           ? msg.content
-          : JSON.stringify(msg.content),
+          : JSON.stringify(msg.content)
       )
       .join("\\n");
   }
@@ -354,7 +500,7 @@ export class MemoryClient {
               name: `memory-${document.id}`,
             },
           }),
-        },
+        }
       );
 
       if (!response.ok) {
@@ -374,7 +520,7 @@ export class MemoryClient {
     streamId: string,
     cid: string,
     merkleRoot: string,
-    metadata: string,
+    metadata: string
   ): Promise<string> {
     // Real blockchain transaction
     try {
@@ -401,7 +547,7 @@ export class MemoryClient {
       const registryContract = new ethers.Contract(
         this.seiConfig.registryAddress,
         registryABI,
-        this.seiConfig.signer,
+        this.seiConfig.signer
       );
 
       // First, register stream if it doesn't exist (ignore if already exists)
@@ -411,7 +557,7 @@ export class MemoryClient {
         const registerTx = await registryContract.registerStream(
           streamId,
           signerAddress,
-          "default",
+          "default"
         );
         await registerTx.wait();
         console.log(`✅ Stream registered: ${registerTx.hash}`);
@@ -426,13 +572,13 @@ export class MemoryClient {
         streamId,
         cid,
         merkleRoot,
-        metadata,
+        metadata
       );
 
       console.log(`⏳ Transaction submitted: ${appendTx.hash}`);
       const receipt = await appendTx.wait();
       console.log(
-        `✅ Real blockchain transaction confirmed! Block: ${receipt.blockNumber}`,
+        `✅ Real blockchain transaction confirmed! Block: ${receipt.blockNumber}`
       );
 
       return appendTx.hash;
@@ -445,7 +591,7 @@ export class MemoryClient {
   private async _searchSeiIndex(
     embedding: number[],
     streamId: string,
-    limit: number,
+    limit: number
   ): Promise<any[]> {
     // Real blockchain search - get actual CIDs from the registry
     try {
@@ -473,14 +619,14 @@ export class MemoryClient {
       const registryContract = new ethers.Contract(
         this.seiConfig.registryAddress,
         registryABI,
-        this.seiConfig.signer,
+        this.seiConfig.signer
       );
 
       // Get stream history (all CIDs for this stream)
       try {
         const streamHistory = await registryContract.getStreamHistory(streamId);
         console.log(
-          `📚 Found ${streamHistory.length} memories in stream ${streamId}`,
+          `📚 Found ${streamHistory.length} memories in stream ${streamId}`
         );
 
         // Return the most recent CIDs with mock scores (in production, use real vector search)
@@ -494,7 +640,7 @@ export class MemoryClient {
       } catch (error) {
         console.log(
           `⚠️ Could not fetch stream history for ${streamId}:`,
-          error,
+          error
         );
 
         // Fallback: try to get just the latest CID
@@ -502,7 +648,7 @@ export class MemoryClient {
           const streamInfo = await registryContract.streams(streamId);
           if (streamInfo.exists && streamInfo.latestCID) {
             console.log(
-              `📄 Found latest CID for stream ${streamId}: ${streamInfo.latestCID}`,
+              `📄 Found latest CID for stream ${streamId}: ${streamInfo.latestCID}`
             );
             return [
               {
