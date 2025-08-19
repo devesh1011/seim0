@@ -30,6 +30,7 @@ PINATA_SECRET_KEY=your_pinata_secret_key
 
 # Required for on-chain transactions
 PRIVATE_KEY=your_wallet_private_key
+GOOGLE_API_KEY="your_gemini_or_openai_api_key"
 ```
 
 ### 2. Basic Usage
@@ -39,14 +40,28 @@ import { MemoryClient } from "seim0";
 import { ethers } from "ethers";
 
 const provider = new ethers.providers.JsonRpcProvider(
-  "https://evm-rpc-testnet.sei-apis.com",
+  "https://evm-rpc-testnet.sei-apis.com"
 );
 
 const signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
 
 const memory = new MemoryClient({
-  network: "testnet", // or "mainnet"
+  network: "testnet",
   signer: signer,
+  llm: {
+    provider: "google",
+    config: {
+      apiKey: process.env.GOOGLE_API_KEY,
+      model: "gemini-2.0-flash",
+    },
+  },
+  embedder: {
+    provider: "google",
+    config: {
+      apiKey: process.env.GOOGLE_API_KEY,
+      model: "text-embedding-004",
+    },
+  },
 });
 ```
 
@@ -54,16 +69,31 @@ const memory = new MemoryClient({
 
 ```typescript
 // Add a memory to the blockchain
-const memoryResult = await memory.add(
-  [
-    { role: "user", content: "I love playing basketball on weekends" },
-    {
-      role: "assistant",
-      content: "Great! I'll remember your sports preference.",
-    },
-  ],
-  { user_id: "user123" },
-);
+const conversation = [
+  {
+    role: "user" as const,
+    content:
+      "Hi, I'm David and I work as a blockchain developer at Ethereum Foundation. I specialize in smart contract security and love DeFi protocols.",
+  },
+  {
+    role: "assistant" as const,
+    content:
+      "Nice to meet you David! Smart contract security is crucial in DeFi. What are your favorite protocols to work with?",
+  },
+  {
+    role: "user" as const,
+    content:
+      "I really enjoy working with Uniswap and Compound. I also contribute to OpenZeppelin's security audits on weekends.",
+  },
+];
+
+const result = await memory.add(conversation, {
+  user_id: "david_blockchain_dev",
+  metadata: {
+    session: "test_fact_extraction",
+    project: "sei_memory_test",
+  },
+});
 
 console.log("Memory stored on blockchain!");
 console.log("Transaction Hash:", memoryResult.txHash);
@@ -74,9 +104,9 @@ console.log("IPFS CID:", memoryResult.cid);
 
 ```typescript
 // Search memories on the blockchain
-const searchResults = await memory.search("basketball", {
-  user_id: "user123",
-  limit: 10,
+const searchResults = await memory.search(query, {
+  user_id: "david_blockchain_dev",
+  limit: 3,
 });
 
 console.log(`Found ${searchResults.length} memories:`);
@@ -89,7 +119,9 @@ searchResults.forEach((memory, index) => {
 
 ```typescript
 // Get all memories for a user
-const allMemories = await memory.getAll({ user_id: "user123" });
+const allMemories = await memory.getAll({
+  user_id: "david_blockchain_dev",
+});
 console.log(`Total memories: ${allMemories.length}`);
 ```
 
