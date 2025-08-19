@@ -40,7 +40,7 @@ import { MemoryClient } from "seim0";
 import { ethers } from "ethers";
 
 const provider = new ethers.providers.JsonRpcProvider(
-  "https://evm-rpc-testnet.sei-apis.com"
+  "https://evm-rpc-testnet.sei-apis.com",
 );
 
 const signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
