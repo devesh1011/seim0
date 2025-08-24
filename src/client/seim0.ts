@@ -53,27 +53,23 @@ export class MemoryClient {
       // Validate required credentials
       if (!this.seiConfig.privateKey && !this.seiConfig.signer) {
         throw new Error(
-          "Either PRIVATE_KEY environment variable or signer option is required for blockchain transactions",
+          "Either PRIVATE_KEY environment variable or signer option is required for blockchain transactions"
         );
       }
 
       if (!this.seiConfig.pinataApiKey || !this.seiConfig.pinataSecretKey) {
         console.warn(
-          "⚠️  PINATA_API_KEY and PINATA_SECRET_KEY not found in environment variables. IPFS uploads will use mock data for development.",
+          "⚠️  PINATA_API_KEY and PINATA_SECRET_KEY not found in environment variables. IPFS uploads will use mock data for development."
         );
       }
-
-      console.log(`✅ Sei ${network} backend initialized`);
     }
     // Handle advanced configuration
     else if (options.customConfig) {
       this.seiConfig = options.customConfig;
-      console.log("✅ Sei backend initialized with custom configuration");
     }
     // Handle legacy configuration
     else if (options.sei) {
       this.seiConfig = options.sei;
-      console.log("✅ Sei backend initialized with legacy configuration");
     } else {
       throw new Error("Sei configuration is required for seim0");
     }
@@ -124,12 +120,12 @@ export class MemoryClient {
       });
 
       console.log(
-        `🧠 Fact extraction enabled with ${llmConfig.provider} LLM and ${embedderConfig.provider} embedder`,
+        `🧠 Fact extraction enabled with ${llmConfig.provider} LLM and ${embedderConfig.provider} embedder`
       );
     } catch (error) {
       console.error("Failed to initialize fact extraction:", error);
       console.warn(
-        "⚠️  Continuing without fact extraction. Raw messages will be stored.",
+        "⚠️  Continuing without fact extraction. Raw messages will be stored."
       );
       this.enableFactExtraction = false;
     }
@@ -143,22 +139,22 @@ export class MemoryClient {
 
         // Create provider for the configured network
         const provider = new ethers.providers.JsonRpcProvider(
-          this.seiConfig.rpcUrl,
+          this.seiConfig.rpcUrl
         );
 
         // Create signer from private key
         this.seiConfig.signer = new ethers.Wallet(
           this.seiConfig.privateKey,
-          provider,
+          provider
         );
 
         console.log(
-          `🔑 Wallet initialized: ${await this.seiConfig.signer.getAddress()}`,
+          `🔑 Wallet initialized: ${await this.seiConfig.signer.getAddress()}`
         );
       } catch (error) {
         console.error("Failed to create signer from private key:", error);
         throw new Error(
-          "Failed to initialize wallet. Please check your PRIVATE_KEY.",
+          "Failed to initialize wallet. Please check your PRIVATE_KEY."
         );
       }
     }
@@ -167,7 +163,7 @@ export class MemoryClient {
   // Core memory operations for Sei blockchain
   async add(
     messages: Array<Message>,
-    options: MemoryOptions = {},
+    options: MemoryOptions = {}
   ): Promise<SeiMemoryResult> {
     return this._addSei(messages, options);
   }
@@ -187,7 +183,7 @@ export class MemoryClient {
   async update(
     memoryId: string,
     data: MemoryUpdateBody,
-    options: MemoryOptions = {},
+    options: MemoryOptions = {}
   ): Promise<Memory> {
     return this._updateSei(memoryId, data, options);
   }
@@ -198,7 +194,7 @@ export class MemoryClient {
 
   async history(
     memoryId: string,
-    options: MemoryOptions = {},
+    options: MemoryOptions = {}
   ): Promise<MemoryHistory[]> {
     return this._historySei(memoryId, options);
   }
@@ -206,7 +202,7 @@ export class MemoryClient {
   // Sei blockchain implementations
   private async _addSei(
     messages: Array<Message>,
-    options: MemoryOptions,
+    options: MemoryOptions
   ): Promise<SeiMemoryResult> {
     try {
       let extractedFacts: MemoryItem[] = [];
@@ -275,7 +271,7 @@ export class MemoryClient {
         streamId,
         cid,
         merkleRoot,
-        JSON.stringify(document.metadata),
+        JSON.stringify(document.metadata)
       );
 
       console.log("🎉 Memory successfully stored on blockchain!");
@@ -296,18 +292,18 @@ export class MemoryClient {
     } catch (error) {
       console.error("Error adding Sei memory:", error);
       throw new APIError(
-        `Failed to add Sei memory: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `Failed to add Sei memory: ${error instanceof Error ? error.message : "Unknown error"}`
       );
     }
   }
 
   private async _getSei(
     memoryId: string,
-    options: MemoryOptions,
+    options: MemoryOptions
   ): Promise<Memory> {
     // Simplified implementation - in production, query blockchain by memory ID
     throw new Error(
-      "Get by ID not yet implemented for Sei. Use search instead.",
+      "Get by ID not yet implemented for Sei. Use search instead."
     );
   }
 
@@ -319,7 +315,7 @@ export class MemoryClient {
 
   private async _searchSei(
     query: string,
-    options: SearchOptions,
+    options: SearchOptions
   ): Promise<Memory[]> {
     try {
       const streamId = options.user_id || "default_stream";
@@ -362,7 +358,7 @@ export class MemoryClient {
         } catch (error) {
           console.warn(
             "Semantic search failed, falling back to blockchain search:",
-            error,
+            error
           );
         }
       }
@@ -377,7 +373,7 @@ export class MemoryClient {
       const searchResults = await this._searchSeiIndex(
         queryEmbedding,
         streamId,
-        limit,
+        limit
       );
 
       // 3. Verify results and hydrate from IPFS
@@ -409,7 +405,7 @@ export class MemoryClient {
     } catch (error) {
       console.error("Error searching Sei memories:", error);
       throw new APIError(
-        `Failed to search Sei memories: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `Failed to search Sei memories: ${error instanceof Error ? error.message : "Unknown error"}`
       );
     }
   }
@@ -417,27 +413,27 @@ export class MemoryClient {
   private async _updateSei(
     memoryId: string,
     data: MemoryUpdateBody,
-    options: MemoryOptions,
+    options: MemoryOptions
   ): Promise<Memory> {
     // For blockchain, create new memory with reference to old one
     throw new Error(
-      "Update not yet implemented for Sei. Create new memory instead.",
+      "Update not yet implemented for Sei. Create new memory instead."
     );
   }
 
   private async _deleteSei(
     memoryId: string,
-    options: MemoryOptions,
+    options: MemoryOptions
   ): Promise<string> {
     // Blockchain records are immutable, mark as deleted in metadata
     throw new Error(
-      "Delete not yet implemented for Sei. Memories are immutable on blockchain.",
+      "Delete not yet implemented for Sei. Memories are immutable on blockchain."
     );
   }
 
   private async _historySei(
     memoryId: string,
-    options: MemoryOptions,
+    options: MemoryOptions
   ): Promise<MemoryHistory[]> {
     // Get memory history from blockchain events
     throw new Error("History not yet implemented for Sei.");
@@ -449,7 +445,7 @@ export class MemoryClient {
       .map((msg) =>
         typeof msg.content === "string"
           ? msg.content
-          : JSON.stringify(msg.content),
+          : JSON.stringify(msg.content)
       )
       .join("\\n");
   }
@@ -500,7 +496,7 @@ export class MemoryClient {
               name: `memory-${document.id}`,
             },
           }),
-        },
+        }
       );
 
       if (!response.ok) {
@@ -520,7 +516,7 @@ export class MemoryClient {
     streamId: string,
     cid: string,
     merkleRoot: string,
-    metadata: string,
+    metadata: string
   ): Promise<string> {
     // Real blockchain transaction
     try {
@@ -547,7 +543,7 @@ export class MemoryClient {
       const registryContract = new ethers.Contract(
         this.seiConfig.registryAddress,
         registryABI,
-        this.seiConfig.signer,
+        this.seiConfig.signer
       );
 
       // First, register stream if it doesn't exist (ignore if already exists)
@@ -557,7 +553,7 @@ export class MemoryClient {
         const registerTx = await registryContract.registerStream(
           streamId,
           signerAddress,
-          "default",
+          "default"
         );
         await registerTx.wait();
         console.log(`✅ Stream registered: ${registerTx.hash}`);
@@ -572,13 +568,13 @@ export class MemoryClient {
         streamId,
         cid,
         merkleRoot,
-        metadata,
+        metadata
       );
 
       console.log(`⏳ Transaction submitted: ${appendTx.hash}`);
       const receipt = await appendTx.wait();
       console.log(
-        `✅ Real blockchain transaction confirmed! Block: ${receipt.blockNumber}`,
+        `✅ Real blockchain transaction confirmed! Block: ${receipt.blockNumber}`
       );
 
       return appendTx.hash;
@@ -591,7 +587,7 @@ export class MemoryClient {
   private async _searchSeiIndex(
     embedding: number[],
     streamId: string,
-    limit: number,
+    limit: number
   ): Promise<any[]> {
     // Real blockchain search - get actual CIDs from the registry
     try {
@@ -619,14 +615,14 @@ export class MemoryClient {
       const registryContract = new ethers.Contract(
         this.seiConfig.registryAddress,
         registryABI,
-        this.seiConfig.signer,
+        this.seiConfig.signer
       );
 
       // Get stream history (all CIDs for this stream)
       try {
         const streamHistory = await registryContract.getStreamHistory(streamId);
         console.log(
-          `📚 Found ${streamHistory.length} memories in stream ${streamId}`,
+          `📚 Found ${streamHistory.length} memories in stream ${streamId}`
         );
 
         // Return the most recent CIDs with mock scores (in production, use real vector search)
@@ -640,7 +636,7 @@ export class MemoryClient {
       } catch (error) {
         console.log(
           `⚠️ Could not fetch stream history for ${streamId}:`,
-          error,
+          error
         );
 
         // Fallback: try to get just the latest CID
@@ -648,7 +644,7 @@ export class MemoryClient {
           const streamInfo = await registryContract.streams(streamId);
           if (streamInfo.exists && streamInfo.latestCID) {
             console.log(
-              `📄 Found latest CID for stream ${streamId}: ${streamInfo.latestCID}`,
+              `📄 Found latest CID for stream ${streamId}: ${streamInfo.latestCID}`
             );
             return [
               {

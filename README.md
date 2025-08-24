@@ -40,7 +40,7 @@ import { MemoryClient } from "seim0";
 import { ethers } from "ethers";
 
 const provider = new ethers.providers.JsonRpcProvider(
-  "https://evm-rpc-testnet.sei-apis.com",
+  "https://evm-rpc-testnet.sei-apis.com"
 );
 
 const signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
@@ -124,6 +124,130 @@ const allMemories = await memory.getAll({
 });
 console.log(`Total memories: ${allMemories.length}`);
 ```
+
+## 🧠 Short-Term Memory
+
+Short-term memory in Seim0 refers to recent conversational context and facts that are immediately available for retrieval and reasoning by AI agents. These are typically stored off-chain and are not yet committed to decentralized storage or the blockchain, allowing for fast, ephemeral access.
+
+```typescript
+// Add a short-term memory (ephemeral, not yet on-chain)
+const shortTermConversation = [
+  { role: "user" as const, content: "Remind me to call Bob at 5pm." },
+];
+
+// Store in-memory or in a local vector store for quick recall
+await memory.add(shortTermConversation, {
+  user_id: "alice_temp",
+  metadata: { session: "reminders", temporary: true },
+  // Optionally, use a memory backend that does not persist to blockchain/IPFS
+});
+
+// Retrieve short-term memory
+const reminders = await memory.search("call Bob", {
+  user_id: "alice_temp",
+  limit: 1,
+});
+console.log(reminders[0]?.memory);
+```
+
+Short-term memories can be periodically consolidated or promoted to long-term memory if they are deemed important.
+
+## 🧠 Short-Term Memory
+
+Short-term memory in Seim0 refers to recent conversational context and facts that are immediately available for retrieval and reasoning by AI agents. These are typically scoped to a specific run or workflow using `runId`, and are not yet committed to decentralized storage or the blockchain, allowing for fast, ephemeral access.
+
+```typescript
+// Add a short-term memory (ephemeral, scoped to a run/workflow)
+const shortTermConversation = [
+  { role: "user" as const, content: "Remind me to call Bob at 5pm." },
+];
+
+// Store with a runId for session/workflow scoping
+await memory.add(shortTermConversation, {
+  user_id: "alice_temp",
+  runId: "reminder_run_001",
+  metadata: { temporary: true },
+  // Optionally, use a memory backend that does not persist to blockchain/IPFS
+});
+
+// Retrieve short-term memory for this run
+const reminders = await memory.search("call Bob", {
+  user_id: "alice_temp",
+  runId: "reminder_run_001",
+  limit: 1,
+});
+console.log(reminders[0]?.memory);
+```
+
+Short-term memories can be periodically consolidated or promoted to long-term memory if they are deemed important.
+
+## 🗃️ Long-Term Memory
+
+Long-term memory in Seim0 consists of important, structured facts and knowledge that are persisted across sessions and users. These are pinned to IPFS and indexed on the Sei blockchain, ensuring durability, auditability, and decentralized access.
+
+```typescript
+// Add a long-term memory (persisted on-chain and IPFS)
+const longTermConversation = [
+  { role: "user" as const, content: "My passport number is X1234567." },
+  {
+    role: "assistant" as const,
+    content: "I've saved your passport number securely.",
+  },
+];
+
+const result = await memory.add(longTermConversation, {
+  user_id: "alice",
+  metadata: { session: "identity", importance: "high" },
+  // By default, Seim0 will persist this to IPFS and index on Sei
+});
+
+console.log("Memory stored on blockchain!");
+console.log("Transaction Hash:", result.txHash);
+console.log("IPFS CID:", result.cid);
+
+// Retrieve long-term memory
+const identityFacts = await memory.search("passport number", {
+  user_id: "alice",
+  limit: 1,
+});
+console.log(identityFacts[0]?.memory);
+```
+
+Long-term memories are tamper-proof, censorship-resistant, and globally accessible, making them ideal for critical knowledge and persistent facts.
+
+## 🗃️ Long-Term Memory
+
+Long-term memory in Seim0 consists of important, structured facts and knowledge that are persisted globally across all runs and sessions for a user. These are pinned to IPFS and indexed on the Sei blockchain, ensuring durability, auditability, and decentralized access. Long-term memories do not require a `runId` and are preserved beyond any single session or workflow.
+
+```typescript
+// Add a long-term memory (persisted on-chain and IPFS, global for the user)
+const longTermConversation = [
+  { role: "user" as const, content: "My passport number is X1234567." },
+  {
+    role: "assistant" as const,
+    content: "I've saved your passport number securely.",
+  },
+];
+
+const result = await memory.add(longTermConversation, {
+  user_id: "alice",
+  metadata: { importance: "high" },
+  // By default, Seim0 will persist this to IPFS and index on Sei
+});
+
+console.log("Memory stored on blockchain!");
+console.log("Transaction Hash:", result.txHash);
+console.log("IPFS CID:", result.cid);
+
+// Retrieve long-term memory (no runId needed)
+const identityFacts = await memory.search("passport number", {
+  user_id: "alice",
+  limit: 1,
+});
+console.log(identityFacts[0]?.memory);
+```
+
+Long-term memories are tamper-proof, censorship-resistant, and globally accessible, making them ideal for critical knowledge and persistent facts.
 
 ## 🔧 Configuration
 
